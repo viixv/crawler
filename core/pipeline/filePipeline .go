@@ -3,25 +3,25 @@ package pipeline
 import (
 	"os"
 
-	"github.com/viixv/crawler/core/commons/interfaces"
-	"github.com/viixv/crawler/core/commons/page_items"
+	"github.com/viixv/crawler/core/commons/result"
+	"github.com/viixv/crawler/core/commons/task"
 )
 
-type PipelineFile struct {
+type FilePipeline struct {
 	pFile *os.File
 
 	path string
 }
 
-func NewPipelineFile(path string) *PipelineFile {
+func NewFilePipeline(path string) *FilePipeline {
 	pFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		panic("File '" + path + "' in PipelineFile open failed.")
 	}
-	return &PipelineFile{path: path, pFile: pFile}
+	return &FilePipeline{path: path, pFile: pFile}
 }
 
-func (this *PipelineFile) Process(items *page_items.PageItems, t interfaces.Task) {
+func (this *FilePipeline) Process(items *result.ResultItems, t task.Task) {
 	this.pFile.WriteString("----------------------------------------------------------------------------------------------\n")
 	this.pFile.WriteString("Crawled url :\t" + items.GetRequest().GetUrl() + "\n")
 	this.pFile.WriteString("Crawled result : \n")

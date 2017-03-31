@@ -1,18 +1,18 @@
 package pipeline
 
 import (
-	"github.com/viixv/crawler/core/commons/interfaces"
-	"github.com/viixv/crawler/core/commons/page_items"
+	"github.com/viixv/crawler/core/commons/result"
+	"github.com/viixv/crawler/core/commons/task"
 )
 
-type PipelineConsole struct {
+type ConsolePipeline struct {
 }
 
-func NewPipelineConsole() *PipelineConsole {
-	return &PipelineConsole{}
+func NewConsolePipeline() *ConsolePipeline {
+	return &ConsolePipeline{}
 }
 
-func (this *PipelineConsole) Process(items *page_items.PageItems, t interfaces.Task) {
+func (this *ConsolePipeline) Process(items *result.ResultItems, t task.Task) {
 	println("----------------------------------------------------------------------------------------------")
 	println("Crawled url :\t" + items.GetRequest().GetUrl() + "\n")
 	println("Crawled result : ")

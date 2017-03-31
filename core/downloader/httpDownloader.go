@@ -1,3 +1,4 @@
+// Package downloader is the main module of crawler for download page.
 package downloader
 
 import (
@@ -11,19 +12,17 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/bitly/go-simplejson"
-	"github.com/viixv/crawler/core/commons/mlog"
+	"github.com/viixv/crawler/core/commons/log"
 	"github.com/viixv/crawler/core/commons/page"
 	"github.com/viixv/crawler/core/commons/request"
-	"github.com/viixv/crawler/core/commons/util"
+	"github.com/viixv/crawler/core/commons/utils"
 	"golang.org/x/net/html/charset"
 )
 
-// The HttpDownloader download page by package net/http.
-// The "html" content is contained in dom parser of package goquery.
-// The "json" content is saved.
-// The "jsonp" content is modified to json.
-// The "text" content will save body plain text only.
-// The page result is saved in Page.
+// The Downloader interface.
+// You can implement the interface by implement function Download.
+// Function Download need to return Page instance pointer that has request result downloaded from Request.
+
 type HttpDownloader struct {
 }
 
@@ -45,116 +44,10 @@ func (this *HttpDownloader) Download(req *request.Request) *page.Page {
 	case "text":
 		return this.downloadText(p, req)
 	default:
-		mlog.LogInst().LogError("error request type:" + mtype)
+		log.LogInst().LogError("error request type:" + mtype)
 	}
 	return p
 }
-
-/*
-// The acceptableCharset is test for whether Content-Type is UTF-8 or not
-func (this *HttpDownloader) acceptableCharset(contentTypes []string) bool {
-    // each type is like [text/html; charset=UTF-8]
-    // we want the UTF-8 only
-    for _, cType := range contentTypes {
-        if strings.Index(cType, "UTF-8") != -1 || strings.Index(cType, "utf-8") != -1 {
-            return true
-        }
-    }
-    return false
-}
-
-
-// The getCharset used for parsing the header["Content-Type"] string to get charset of the page.
-func (this *HttpDownloader) getCharset(header http.Header) string {
-    reg, err := regexp.Compile("charset=(.*)$")
-    if err != nil {
-        mlog.LogInst().LogError(err.Error())
-        return ""
-    }
-
-    var charset string
-    for _, cType := range header["Content-Type"] {
-        substrings := reg.FindStringSubmatch(cType)
-        if len(substrings) == 2 {
-            charset = substrings[1]
-        }
-    }
-
-    return charset
-}
-
-
-
-
-// Use golang.org/x/text/encoding. Get page body and change it to utf-8
-func (this *HttpDownloader) changeCharsetEncoding(charset string, sor io.ReadCloser) string {
-    ischange := true
-    var tr transform.Transformer
-    cs := strings.ToLower(charset)
-    if cs == "gbk" {
-        tr = simplifiedchinese.GBK.NewDecoder()
-    } else if cs == "gb18030" {
-        tr = simplifiedchinese.GB18030.NewDecoder()
-    } else if cs == "hzgb2312" || cs == "gb2312" || cs == "hz-gb2312" {
-        tr = simplifiedchinese.HZGB2312.NewDecoder()
-    } else {
-        ischange = false
-    }
-
-    var destReader io.Reader
-    if ischange {
-        transReader := transform.NewReader(sor, tr)
-        destReader = transReader
-    } else {
-        destReader = sor
-    }
-
-    var sorbody []byte
-    var err error
-    if sorbody, err = ioutil.ReadAll(destReader); err != nil {
-        mlog.LogInst().LogError(err.Error())
-        return ""
-    }
-    bodystr := string(sorbody)
-
-    return bodystr
-}
-
-// Use go-iconv. Get page body and change it to utf-8
-
-func (this *HttpDownloader) changeCharsetGoIconv(charset string, sor io.ReadCloser) string {
-    var err error
-    var converter *iconv.Converter
-    if charset != "" && strings.ToLower(charset) != "utf-8" && strings.ToLower(charset) != "utf8" {
-        converter, err = iconv.NewConverter(charset, "utf-8")
-        if err != nil {
-            mlog.LogInst().LogError(err.Error())
-            return ""
-        }
-        defer converter.Close()
-    }
-
-    var sorbody []byte
-    if sorbody, err = ioutil.ReadAll(sor); err != nil {
-        mlog.LogInst().LogError(err.Error())
-        return ""
-    }
-    bodystr := string(sorbody)
-
-    var destbody string
-    if converter != nil {
-        // convert to utf8
-        destbody, err = converter.ConvertString(bodystr)
-        if err != nil {
-            mlog.LogInst().LogError(err.Error())
-            return ""
-        }
-    } else {
-        destbody = bodystr
-    }
-    return destbody
-}
-*/
 
 // Charset auto determine. Use golang.org/x/net/html/charset. Get page body and change it to utf-8
 func (this *HttpDownloader) changeCharsetEncodingAuto(contentTypeStr string, sor io.ReadCloser) string {
@@ -162,13 +55,13 @@ func (this *HttpDownloader) changeCharsetEncodingAuto(contentTypeStr string, sor
 	destReader, err := charset.NewReader(sor, contentTypeStr)
 
 	if err != nil {
-		mlog.LogInst().LogError(err.Error())
+		log.LogInst().LogError(err.Error())
 		destReader = sor
 	}
 
 	var sorbody []byte
 	if sorbody, err = ioutil.ReadAll(destReader); err != nil {
-		mlog.LogInst().LogError(err.Error())
+		log.LogInst().LogError(err.Error())
 		// For gb2312, an error will be returned.
 		// Error like: simplifiedchinese: invalid GBK encoding
 		// return ""
@@ -183,20 +76,20 @@ func (this *HttpDownloader) changeCharsetEncodingAutoGzipSupport(contentTypeStr 
 	var err error
 	gzipReader, err := gzip.NewReader(sor)
 	if err != nil {
-		mlog.LogInst().LogError(err.Error())
+		log.LogInst().LogError(err.Error())
 		return ""
 	}
 	defer gzipReader.Close()
 	destReader, err := charset.NewReader(gzipReader, contentTypeStr)
 
 	if err != nil {
-		mlog.LogInst().LogError(err.Error())
+		log.LogInst().LogError(err.Error())
 		destReader = sor
 	}
 
 	var sorbody []byte
 	if sorbody, err = ioutil.ReadAll(destReader); err != nil {
-		mlog.LogInst().LogError(err.Error())
+		log.LogInst().LogError(err.Error())
 		// For gb2312, an error will be returned.
 		// Error like: simplifiedchinese: invalid GBK encoding
 		// return ""
@@ -229,7 +122,7 @@ func connectByHttp(p *page.Page, req *request.Request) (*http.Response, error) {
 		if e, ok := err.(*url.Error); ok && e.Err != nil && e.Err.Error() == "normal" {
 			//  normal
 		} else {
-			mlog.LogInst().LogError(err.Error())
+			log.LogInst().LogError(err.Error())
 			p.SetStatus(true, err.Error())
 			//fmt.Printf("client do error %v \r\n", err)
 			return nil, err
@@ -264,7 +157,7 @@ func (this *HttpDownloader) downloadFile(p *page.Page, req *request.Request) (*p
 	var err error
 	var urlstr string
 	if urlstr = req.GetUrl(); len(urlstr) == 0 {
-		mlog.LogInst().LogError("url is empty")
+		log.LogInst().LogError("url is empty")
 		p.SetStatus(true, "url is empty")
 		return p, ""
 	}
@@ -315,14 +208,14 @@ func (this *HttpDownloader) downloadHtml(p *page.Page, req *request.Request) *pa
 
 	var doc *goquery.Document
 	if doc, err = goquery.NewDocumentFromReader(bodyReader); err != nil {
-		mlog.LogInst().LogError(err.Error())
+		log.LogInst().LogError(err.Error())
 		p.SetStatus(true, err.Error())
 		return p
 	}
 
 	var body string
 	if body, err = doc.Html(); err != nil {
-		mlog.LogInst().LogError(err.Error())
+		log.LogInst().LogError(err.Error())
 		p.SetStatus(true, err.Error())
 		return p
 	}
@@ -343,13 +236,13 @@ func (this *HttpDownloader) downloadJson(p *page.Page, req *request.Request) *pa
 	body = []byte(destbody)
 	mtype := req.GetResponceType()
 	if mtype == "jsonp" {
-		tmpstr := util.JsonpToJson(destbody)
+		tmpstr := utils.JsonpToJson(destbody)
 		body = []byte(tmpstr)
 	}
 
 	var r *simplejson.Json
 	if r, err = simplejson.NewJson(body); err != nil {
-		mlog.LogInst().LogError(string(body) + "\t" + err.Error())
+		log.LogInst().LogError(string(body) + "\t" + err.Error())
 		p.SetStatus(true, err.Error())
 		return p
 	}

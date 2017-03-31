@@ -1,4 +1,4 @@
-// Package downloader is the main module of GO_SPIDER for download page.
+// Package downloader is the main module of crawler for download page.
 package downloader
 
 import (

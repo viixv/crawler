@@ -1,5 +1,5 @@
 // Package interfaces contains some common interface of crawler project.
-package interfaces
+package task
 
 // The Task represents interface that contains environment variables.
 // It inherits by Spider.

@@ -1,13 +1,13 @@
-// Package page_items contains parsed result by PageProcesser.
+// Package result contains parsed result by PageProcesser.
 // The result is processed by Pipeline.
-package page_items
+package result
 
 import (
 	"github.com/viixv/crawler/core/commons/request"
 )
 
 // PageItems represents an entity save result parsed by PageProcesser and will be output at last.
-type PageItems struct {
+type ResultItems struct {
 
 	// The req is Request object that contains the parsed result, which saved in PageItems.
 	req *request.Request
@@ -19,40 +19,40 @@ type PageItems struct {
 	skip bool
 }
 
-// NewPageItems returns initialized PageItems object.
-func NewPageItems(req *request.Request) *PageItems {
+// NewResultItems returns initialized PageItems object.
+func NewResultItems(req *request.Request) *ResultItems {
 	items := make(map[string]string)
-	return &PageItems{req: req, items: items, skip: false}
+	return &ResultItems{req: req, items: items, skip: false}
 }
 
 // GetRequest returns request of PageItems
-func (this *PageItems) GetRequest() *request.Request {
+func (this *ResultItems) GetRequest() *request.Request {
 	return this.req
 }
 
 // AddItem saves a KV result into PageItems.
-func (this *PageItems) AddItem(key string, item string) {
+func (this *ResultItems) AddItem(key string, item string) {
 	this.items[key] = item
 }
 
 // GetItem returns value of the key.
-func (this *PageItems) GetItem(key string) (string, bool) {
+func (this *ResultItems) GetItem(key string) (string, bool) {
 	t, ok := this.items[key]
 	return t, ok
 }
 
 // GetAll returns all the KVs result.
-func (this *PageItems) GetAll() map[string]string {
+func (this *ResultItems) GetAll() map[string]string {
 	return this.items
 }
 
 // SetSkip set skip true to make this page not to be processed by Pipeline.
-func (this *PageItems) SetSkip(skip bool) *PageItems {
+func (this *ResultItems) SetSkip(skip bool) *ResultItems {
 	this.skip = skip
 	return this
 }
 
 // GetSkip returns skip label.
-func (this *PageItems) GetSkip() bool {
+func (this *ResultItems) GetSkip() bool {
 	return this.skip
 }

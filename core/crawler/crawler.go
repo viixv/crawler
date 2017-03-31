@@ -5,11 +5,11 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/viixv/crawler/core/commons/mlog"
+	"github.com/viixv/crawler/core/commons/controller"
+	"github.com/viixv/crawler/core/commons/log"
 	"github.com/viixv/crawler/core/commons/page"
-	"github.com/viixv/crawler/core/commons/page_items"
 	"github.com/viixv/crawler/core/commons/request"
-	"github.com/viixv/crawler/core/commons/resource_manage"
+	"github.com/viixv/crawler/core/commons/result"
 	"github.com/viixv/crawler/core/downloader"
 	"github.com/viixv/crawler/core/pipeline"
 	"github.com/viixv/crawler/core/processor"
@@ -19,7 +19,7 @@ import (
 type Crawler struct {
 	taskname string
 
-	pPageProcesser processor.PageProcesser
+	pPageProcessor processor.PageProcessor
 
 	pDownloader downloader.Downloader
 
@@ -27,7 +27,7 @@ type Crawler struct {
 
 	pPiplelines []pipeline.Pipeline
 
-	mc resource_manage.ResourceManage
+	mc controller.GoroutineController
 
 	threadnum uint
 
@@ -41,10 +41,10 @@ type Crawler struct {
 
 // Spider is scheduler module for all the other modules, like downloader, pipeline, scheduler and etc.
 // The taskname could be empty string too, or it can be used in Pipeline for record the result crawled by which task;
-func NewCrawler(pageinst processor.PageProcesser, taskname string) *Crawler {
-	mlog.StraceInst().Open()
+func NewCrawler(pageinst processor.PageProcessor, taskname string) *Crawler {
+	log.StraceInst().Open()
 
-	ap := &Crawler{taskname: taskname, pPageProcesser: pageinst}
+	ap := &Crawler{taskname: taskname, pPageProcessor: pageinst}
 
 	// init filelog.
 	ap.CloseFileLog()
@@ -61,7 +61,7 @@ func NewCrawler(pageinst processor.PageProcesser, taskname string) *Crawler {
 		ap.SetDownloader(downloader.NewHttpDownloader())
 	}
 
-	mlog.StraceInst().Println("** start crawler **")
+	log.StraceInst().Println("** start crawler **")
 	ap.pPiplelines = make([]pipeline.Pipeline, 0)
 
 	return ap
@@ -72,19 +72,19 @@ func (this *Crawler) TaskName() string {
 }
 
 // Deal with one url and return the PageItems.
-func (this *Crawler) Get(url string, respType string) *page_items.PageItems {
+func (this *Crawler) Get(url string, respType string) *result.ResultItems {
 	req := request.NewRequest(url, respType, "", "GET", "", nil, nil, nil, nil)
 	return this.GetByRequest(req)
 }
 
 // Deal with several urls and return the PageItems slice.
-func (this *Crawler) GetAll(urls []string, respType string) []*page_items.PageItems {
+func (this *Crawler) GetAll(urls []string, respType string) []*result.ResultItems {
 	for _, u := range urls {
 		req := request.NewRequest(u, respType, "", "GET", "", nil, nil, nil, nil)
 		this.AddRequest(req)
 	}
 
-	pip := pipeline.NewCollectPipelinePageItems()
+	pip := pipeline.NewPipelineCollector()
 	this.AddPipeline(pip)
 
 	this.Run()
@@ -93,7 +93,7 @@ func (this *Crawler) GetAll(urls []string, respType string) []*page_items.PageIt
 }
 
 // Deal with one url and return the PageItems with other setting.
-func (this *Crawler) GetByRequest(req *request.Request) *page_items.PageItems {
+func (this *Crawler) GetByRequest(req *request.Request) *result.ResultItems {
 	var reqs []*request.Request
 	reqs = append(reqs, req)
 	items := this.GetAllByRequest(reqs)
@@ -104,14 +104,14 @@ func (this *Crawler) GetByRequest(req *request.Request) *page_items.PageItems {
 }
 
 // Deal with several urls and return the PageItems slice
-func (this *Crawler) GetAllByRequest(reqs []*request.Request) []*page_items.PageItems {
+func (this *Crawler) GetAllByRequest(reqs []*request.Request) []*result.ResultItems {
 	// push url
 	for _, req := range reqs {
 		//req := request.NewRequest(u, respType, urltag, method, postdata, header, cookies)
 		this.AddRequest(req)
 	}
 
-	pip := pipeline.NewCollectPipelinePageItems()
+	pip := pipeline.NewPipelineCollector()
 	this.AddPipeline(pip)
 
 	this.Run()
@@ -123,7 +123,7 @@ func (this *Crawler) Run() {
 	if this.threadnum == 0 {
 		this.threadnum = 1
 	}
-	this.mc = resource_manage.NewResourceManageChan(this.threadnum)
+	this.mc = controller.NewGoroutineControllerChan(this.threadnum)
 
 	//init db  by sorawa
 
@@ -132,9 +132,9 @@ func (this *Crawler) Run() {
 
 		// mc is not atomic
 		if this.mc.Has() == 0 && req == nil && this.exitWhenComplete {
-			mlog.StraceInst().Println("** executed callback **")
-			this.pPageProcesser.Finish()
-			mlog.StraceInst().Println("** end crawler **")
+			log.StraceInst().Println("** executed callback **")
+			this.pPageProcessor.Finish()
+			log.StraceInst().Println("** end crawler **")
 			break
 		} else if req == nil {
 			time.Sleep(500 * time.Millisecond)
@@ -146,7 +146,7 @@ func (this *Crawler) Run() {
 		go func(req *request.Request) {
 			defer this.mc.FreeOne()
 			//time.Sleep( time.Duration(rand.Intn(5)) * time.Second)
-			mlog.StraceInst().Println("start crawl : " + req.GetUrl())
+			log.StraceInst().Println("start crawl : " + req.GetUrl())
 			this.pageProcess(req)
 		}(req)
 	}
@@ -209,32 +209,32 @@ func (this *Crawler) GetExitWhenComplete() bool {
 // Spider's default log is closed.
 // The filepath is absolute path.
 func (this *Crawler) OpenFileLog(filePath string) *Crawler {
-	mlog.InitFilelog(true, filePath)
+	log.InitFilelog(true, filePath)
 	return this
 }
 
 // OpenFileLogDefault open file log with default file path like "WD/log/log.2014-9-1".
 func (this *Crawler) OpenFileLogDefault() *Crawler {
-	mlog.InitFilelog(true, "")
+	log.InitFilelog(true, "")
 	return this
 }
 
 // The CloseFileLog close file log.
 func (this *Crawler) CloseFileLog() *Crawler {
-	mlog.InitFilelog(false, "")
+	log.InitFilelog(false, "")
 	return this
 }
 
 // The OpenStrace open strace that output progress info on the screen.
 // Spider's default strace is opened.
 func (this *Crawler) OpenStrace() *Crawler {
-	mlog.StraceInst().Open()
+	log.StraceInst().Open()
 	return this
 }
 
 // The CloseStrace close strace.
 func (this *Crawler) CloseStrace() *Crawler {
-	mlog.StraceInst().Close()
+	log.StraceInst().Close()
 	return this
 }
 
@@ -306,10 +306,10 @@ func (this *Crawler) AddUrlsEx(urls []string, respType string, headerFile string
 // add Request to Schedule
 func (this *Crawler) AddRequest(req *request.Request) *Crawler {
 	if req == nil {
-		mlog.LogInst().LogError("request is nil")
+		log.LogInst().LogError("request is nil")
 		return this
 	} else if req.GetUrl() == "" {
-		mlog.LogInst().LogError("request is empty")
+		log.LogInst().LogError("request is empty")
 		return this
 	}
 	this.pScheduler.Push(req)
@@ -331,9 +331,9 @@ func (this *Crawler) pageProcess(req *request.Request) {
 	defer func() {
 		if err := recover(); err != nil { // do not affect other
 			if strerr, ok := err.(string); ok {
-				mlog.LogInst().LogError(strerr)
+				log.LogInst().LogError(strerr)
 			} else {
-				mlog.LogInst().LogError("pageProcess error")
+				log.LogInst().LogError("pageProcess error")
 			}
 		}
 	}()
@@ -352,7 +352,7 @@ func (this *Crawler) pageProcess(req *request.Request) {
 		return
 	}
 
-	this.pPageProcesser.Process(p)
+	this.pPageProcessor.Process(p)
 	for _, req := range p.GetTargetRequests() {
 		this.AddRequest(req)
 	}

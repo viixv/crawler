@@ -1,5 +1,4 @@
-// Package page contains result catched by Downloader.
-// And it alse has result parsed by PageProcesser.
+// Package page 保存Downloader下载结果，并且用于Processer解析页面。
 package page
 
 import (
@@ -8,21 +7,22 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/bitly/go-simplejson"
-	"github.com/viixv/crawler/core/commons/mlog"
-	"github.com/viixv/crawler/core/commons/page_items"
+	"github.com/viixv/crawler/core/commons/log"
 	"github.com/viixv/crawler/core/commons/request"
+	"github.com/viixv/crawler/core/commons/result"
 )
 
-// Page represents an entity be crawled.
+// Page代表了从Downloader下载到的一个页面，可能是HTML，也可能是JSON或者其他文本格式的内容。
 type Page struct {
-	// The isfail is true when crawl process is failed and errormsg is the fail resean.
-	isfail   bool
-	errormsg string
+	// isFail 表示下载页面是否失败。
+	isFail bool
+	// 错误信息
+	errorMsg string
 
-	// The request is crawled by spider that contains url and relevent information.
+	// Request 相关信息。
 	req *request.Request
 
-	// The body is plain text of crawl result.
+	// 结果文本
 	body string
 
 	header  http.Header
@@ -36,7 +36,7 @@ type Page struct {
 
 	// The pItems is object for save Key-Values in PageProcesser.
 	// And pItems is output in Pipline.
-	pItems *page_items.PageItems
+	pItems *result.ResultItems
 
 	// The targetRequests is requests to put into Scheduler.
 	targetRequests []*request.Request
@@ -44,7 +44,7 @@ type Page struct {
 
 // NewPage returns initialized Page object.
 func NewPage(req *request.Request) *Page {
-	return &Page{pItems: page_items.NewPageItems(req), req: req}
+	return &Page{pItems: result.NewResultItems(req), req: req}
 }
 
 // SetHeader save the header of http responce
@@ -69,18 +69,18 @@ func (this *Page) GetCookies() []*http.Cookie {
 
 // IsSucc test whether download process success or not.
 func (this *Page) IsSucc() bool {
-	return !this.isfail
+	return !this.isFail
 }
 
 // Errormsg show the download error message.
 func (this *Page) Errormsg() string {
-	return this.errormsg
+	return this.errorMsg
 }
 
 // SetStatus save status info about download process.
-func (this *Page) SetStatus(isfail bool, errormsg string) {
-	this.isfail = isfail
-	this.errormsg = errormsg
+func (this *Page) SetStatus(isFail bool, errorMsg string) {
+	this.isFail = isFail
+	this.errorMsg = errorMsg
 }
 
 // AddField saves KV string pair to PageItems preparing for Pipeline
@@ -89,7 +89,7 @@ func (this *Page) AddField(key string, value string) {
 }
 
 // GetPageItems returns PageItems object that record KV pair parsed in PageProcesser.
-func (this *Page) GetPageItems() *page_items.PageItems {
+func (this *Page) GetPageItems() *result.ResultItems {
 	return this.pItems
 }
 
@@ -208,7 +208,7 @@ func (this *Page) ResetHtmlParser() *goquery.Document {
 	var err error
 	this.docParser, err = goquery.NewDocumentFromReader(r)
 	if err != nil {
-		mlog.LogInst().LogError(err.Error())
+		log.LogInst().LogError(err.Error())
 		panic(err.Error())
 	}
 	return this.docParser

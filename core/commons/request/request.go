@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/bitly/go-simplejson"
-	"github.com/viixv/crawler/core/commons/mlog"
+	"github.com/viixv/crawler/core/commons/log"
 )
 
 // Request represents object waiting for being crawled.
@@ -83,7 +83,7 @@ func readHeaderFromFile(headerFile string) http.Header {
 	b, err := ioutil.ReadFile(headerFile)
 	if err != nil {
 		//make be:  share access error
-		mlog.LogInst().LogError(err.Error())
+		log.LogInst().LogError(err.Error())
 		return nil
 	}
 	js, _ := simplejson.NewJson(b)

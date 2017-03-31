@@ -8,7 +8,7 @@ import (
 	"github.com/viixv/crawler/core/commons/page"
 )
 
-type PageProcesser interface {
+type PageProcessor interface {
 	Process(p *page.Page)
 	Finish()
 }
