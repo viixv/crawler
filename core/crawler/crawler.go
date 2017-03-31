@@ -145,7 +145,6 @@ func (this *Crawler) Run() {
 		// Asynchronous fetching
 		go func(req *request.Request) {
 			defer this.mc.FreeOne()
-			//time.Sleep( time.Duration(rand.Intn(5)) * time.Second)
 			log.StraceInst().Println("start crawl : " + req.GetUrl())
 			this.pageProcess(req)
 		}(req)
