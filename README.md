@@ -1,2 +1,2 @@
 # crawler
-Web crawler framework.
+Go programming language web crawler framework.
