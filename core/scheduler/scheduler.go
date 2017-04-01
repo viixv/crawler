@@ -10,7 +10,7 @@ import (
 )
 
 type Scheduler interface {
-	Push(requ *request.Request)
+	Push(req *request.Request)
 	Poll() *request.Request
 	Count() int
 }

@@ -1,4 +1,3 @@
-// crawler master module
 package crawler
 
 import (
@@ -17,61 +16,41 @@ import (
 )
 
 type Crawler struct {
-	taskname string
-
-	pPageProcessor processor.PageProcessor
-
-	pDownloader downloader.Downloader
-
-	pScheduler scheduler.Scheduler
-
-	pPiplelines []pipeline.Pipeline
-
-	mc controller.GoroutineController
-
-	threadnum uint
-
+	cController      controller.GoroutineController
+	cDownloader      downloader.Downloader
+	cScheduler       scheduler.Scheduler
 	exitWhenComplete bool
-
-	// Sleeptype can be fixed or rand.
-	startSleeptime uint
-	endSleeptime   uint
-	sleeptype      string
+	goroutines       uint
+	pageProcessor    processor.PageProcessor
+	pipelines        []pipeline.Pipeline
+	sleepType        string
+	startSleepTime   uint
+	endSleepTime     uint
+	taskName         string
 }
 
-// Spider is scheduler module for all the other modules, like downloader, pipeline, scheduler and etc.
-// The taskname could be empty string too, or it can be used in Pipeline for record the result crawled by which task;
-func NewCrawler(pageinst processor.PageProcessor, taskname string) *Crawler {
+func NewCrawler(pageProcessor processor.PageProcessor, taskName string) *Crawler {
 	log.StraceInst().Open()
-
-	ap := &Crawler{taskname: taskname, pPageProcessor: pageinst}
-
-	// init filelog.
-	ap.CloseFileLog()
-	ap.exitWhenComplete = true
-	ap.sleeptype = "fixed"
-	ap.startSleeptime = 0
-
-	// init spider
-	if ap.pScheduler == nil {
-		ap.SetScheduler(scheduler.NewQueueScheduler(false))
+	crawler := Crawler{taskName: taskName, pageProcessor: pageProcessor}
+	crawler.CloseFileLog()
+	crawler.exitWhenComplete = true
+	crawler.sleepType = "fixed"
+	crawler.startSleepTime = 0
+	if crawler.cScheduler == nil {
+		crawler.SetScheduler(scheduler.NewQueueScheduler(false))
 	}
-
-	if ap.pDownloader == nil {
-		ap.SetDownloader(downloader.NewHttpDownloader())
+	if crawler.cDownloader == nil {
+		crawler.SetDownloader(downloader.NewHttpDownloader())
 	}
-
-	log.StraceInst().Println("** start crawler **")
-	ap.pPiplelines = make([]pipeline.Pipeline, 0)
-
-	return ap
+	crawler.pipelines = make([]pipeline.Pipeline, 0)
+	log.StraceInst().Println("Crawler initialization complete.")
+	return &crawler
 }
 
 func (this *Crawler) TaskName() string {
-	return this.taskname
+	return this.taskName
 }
 
-// Deal with one url and return the PageItems.
 func (this *Crawler) Get(url string, respType string) *result.ResultItems {
 	req := request.NewRequest(url, respType, "", "GET", "", nil, nil, nil, nil)
 	return this.GetByRequest(req)
@@ -105,9 +84,7 @@ func (this *Crawler) GetByRequest(req *request.Request) *result.ResultItems {
 
 // Deal with several urls and return the PageItems slice
 func (this *Crawler) GetAllByRequest(reqs []*request.Request) []*result.ResultItems {
-	// push url
 	for _, req := range reqs {
-		//req := request.NewRequest(u, respType, urltag, method, postdata, header, cookies)
 		this.AddRequest(req)
 	}
 
@@ -120,31 +97,24 @@ func (this *Crawler) GetAllByRequest(reqs []*request.Request) []*result.ResultIt
 }
 
 func (this *Crawler) Run() {
-	if this.threadnum == 0 {
-		this.threadnum = 1
+	if this.goroutines == 0 {
+		this.goroutines = 1
 	}
-	this.mc = controller.NewGoroutineControllerChan(this.threadnum)
-
-	//init db  by sorawa
+	this.cController = controller.NewGoroutineControllerChan(this.goroutines)
 
 	for {
-		req := this.pScheduler.Poll()
-
-		// mc is not atomic
-		if this.mc.Has() == 0 && req == nil && this.exitWhenComplete {
-			log.StraceInst().Println("** executed callback **")
-			this.pPageProcessor.Finish()
-			log.StraceInst().Println("** end crawler **")
+		req := this.cScheduler.Poll()
+		if this.cController.Has() == 0 && req == nil && this.exitWhenComplete {
+			this.pageProcessor.Finish()
+			log.StraceInst().Println("Crawling complete.")
 			break
 		} else if req == nil {
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
-		this.mc.GetOne()
-
-		// Asynchronous fetching
+		this.cController.GetOne()
 		go func(req *request.Request) {
-			defer this.mc.FreeOne()
+			defer this.cController.FreeOne()
 			log.StraceInst().Println("start crawl : " + req.GetUrl())
 			this.pageProcess(req)
 		}(req)
@@ -155,40 +125,40 @@ func (this *Crawler) Run() {
 func (this *Crawler) close() {
 	this.SetScheduler(scheduler.NewQueueScheduler(false))
 	this.SetDownloader(downloader.NewHttpDownloader())
-	this.pPiplelines = make([]pipeline.Pipeline, 0)
+	this.pipelines = make([]pipeline.Pipeline, 0)
 	this.exitWhenComplete = true
 }
 
 func (this *Crawler) AddPipeline(p pipeline.Pipeline) *Crawler {
-	this.pPiplelines = append(this.pPiplelines, p)
+	this.pipelines = append(this.pipelines, p)
 	return this
 }
 
 func (this *Crawler) SetScheduler(s scheduler.Scheduler) *Crawler {
-	this.pScheduler = s
+	this.cScheduler = s
 	return this
 }
 
 func (this *Crawler) GetScheduler() scheduler.Scheduler {
-	return this.pScheduler
+	return this.cScheduler
 }
 
 func (this *Crawler) SetDownloader(d downloader.Downloader) *Crawler {
-	this.pDownloader = d
+	this.cDownloader = d
 	return this
 }
 
 func (this *Crawler) GetDownloader() downloader.Downloader {
-	return this.pDownloader
+	return this.cDownloader
 }
 
 func (this *Crawler) SetThreadnum(i uint) *Crawler {
-	this.threadnum = i
+	this.goroutines = i
 	return this
 }
 
 func (this *Crawler) GetThreadnum() uint {
-	return this.threadnum
+	return this.goroutines
 }
 
 // If exit when each crawl task is done.
@@ -237,25 +207,21 @@ func (this *Crawler) CloseStrace() *Crawler {
 	return this
 }
 
-// The SetSleepTime set sleep time after each crawl task.
-// The unit is millisecond.
-// If sleeptype is "fixed", the s is the sleep time and e is useless.
-// If sleeptype is "rand", the sleep time is rand between s and e.
 func (this *Crawler) SetSleepTime(sleeptype string, s uint, e uint) *Crawler {
-	this.sleeptype = sleeptype
-	this.startSleeptime = s
-	this.endSleeptime = e
-	if this.sleeptype == "rand" && this.startSleeptime >= this.endSleeptime {
+	this.sleepType = sleeptype
+	this.startSleepTime = s
+	this.endSleepTime = e
+	if this.sleepType == "rand" && this.startSleepTime >= this.endSleepTime {
 		panic("startSleeptime must smaller than endSleeptime")
 	}
 	return this
 }
 
 func (this *Crawler) sleep() {
-	if this.sleeptype == "fixed" {
-		time.Sleep(time.Duration(this.startSleeptime) * time.Millisecond)
-	} else if this.sleeptype == "rand" {
-		sleeptime := rand.Intn(int(this.endSleeptime-this.startSleeptime)) + int(this.startSleeptime)
+	if this.sleepType == "fixed" {
+		time.Sleep(time.Duration(this.startSleepTime) * time.Millisecond)
+	} else if this.sleepType == "rand" {
+		sleeptime := rand.Intn(int(this.endSleepTime-this.startSleepTime)) + int(this.startSleepTime)
 		time.Sleep(time.Duration(sleeptime) * time.Millisecond)
 	}
 }
@@ -266,38 +232,10 @@ func (this *Crawler) AddUrl(url string, respType string) *Crawler {
 	return this
 }
 
-func (this *Crawler) AddUrlEx(url string, respType string, headerFile string, proxyHost string) *Crawler {
-	req := request.NewRequest(url, respType, "", "GET", "", nil, nil, nil, nil)
-	this.AddRequest(req.AddHeaderFile(headerFile).AddProxyHost(proxyHost))
-	return this
-}
-
-func (this *Crawler) AddUrlWithHeaderFile(url string, respType string, headerFile string) *Crawler {
-	req := request.NewRequestWithHeaderFile(url, respType, headerFile)
-	this.AddRequest(req)
-	return this
-}
-
 func (this *Crawler) AddUrls(urls []string, respType string) *Crawler {
 	for _, url := range urls {
 		req := request.NewRequest(url, respType, "", "GET", "", nil, nil, nil, nil)
 		this.AddRequest(req)
-	}
-	return this
-}
-
-func (this *Crawler) AddUrlsWithHeaderFile(urls []string, respType string, headerFile string) *Crawler {
-	for _, url := range urls {
-		req := request.NewRequestWithHeaderFile(url, respType, headerFile)
-		this.AddRequest(req)
-	}
-	return this
-}
-
-func (this *Crawler) AddUrlsEx(urls []string, respType string, headerFile string, proxyHost string) *Crawler {
-	for _, url := range urls {
-		req := request.NewRequest(url, respType, "", "GET", "", nil, nil, nil, nil)
-		this.AddRequest(req.AddHeaderFile(headerFile).AddProxyHost(proxyHost))
 	}
 	return this
 }
@@ -311,7 +249,7 @@ func (this *Crawler) AddRequest(req *request.Request) *Crawler {
 		log.LogInst().LogError("request is empty")
 		return this
 	}
-	this.pScheduler.Push(req)
+	this.cScheduler.Push(req)
 	return this
 }
 
@@ -326,9 +264,8 @@ func (this *Crawler) AddRequests(reqs []*request.Request) *Crawler {
 // core processer
 func (this *Crawler) pageProcess(req *request.Request) {
 	var p *page.Page
-
 	defer func() {
-		if err := recover(); err != nil { // do not affect other
+		if err := recover(); err != nil {
 			if strerr, ok := err.(string); ok {
 				log.LogInst().LogError(strerr)
 			} else {
@@ -337,29 +274,26 @@ func (this *Crawler) pageProcess(req *request.Request) {
 		}
 	}()
 
-	// download page
 	for i := 0; i < 3; i++ {
 		this.sleep()
-		p = this.pDownloader.Download(req)
-		if p.IsSucc() { // if fail retry 3 times
+		p = this.cDownloader.Download(req)
+		if p.IsSucc() {
 			break
 		}
-
 	}
 
-	if !p.IsSucc() { // if fail do not need process
+	if !p.IsSucc() {
 		return
 	}
 
-	this.pPageProcessor.Process(p)
+	this.pageProcessor.Process(p)
 	for _, req := range p.GetTargetRequests() {
 		this.AddRequest(req)
 	}
 
-	// output
 	if !p.GetSkip() {
-		for _, pip := range this.pPiplelines {
-			pip.Process(p.GetPageItems(), this)
+		for _, pipe := range this.pipelines {
+			pipe.Process(p.GetPageItems(), this)
 		}
 	}
 }

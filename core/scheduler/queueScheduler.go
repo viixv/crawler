@@ -1,8 +1,3 @@
-// Copyright 2014 Hu Cong. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-//
 package scheduler
 
 import (
@@ -14,56 +9,53 @@ import (
 )
 
 type QueueScheduler struct {
-	locker *sync.Mutex
-	rm     bool
-	rmKey  map[[md5.Size]byte]*list.Element
-	queue  *list.List
+	mutex sync.Mutex
+	rm    bool
+	rmKey map[[md5.Size]byte]*list.Element
+	queue *list.List
 }
 
 func NewQueueScheduler(rmDuplicate bool) *QueueScheduler {
 	queue := list.New()
 	rmKey := make(map[[md5.Size]byte]*list.Element)
-	locker := new(sync.Mutex)
-	return &QueueScheduler{rm: rmDuplicate, queue: queue, rmKey: rmKey, locker: locker}
+	return &QueueScheduler{rm: rmDuplicate, queue: queue, rmKey: rmKey}
 }
 
-func (this *QueueScheduler) Push(requ *request.Request) {
-	this.locker.Lock()
+func (this *QueueScheduler) Push(req *request.Request) {
+	this.mutex.Lock()
 	var key [md5.Size]byte
 	if this.rm {
-		key = md5.Sum([]byte(requ.GetUrl()))
+		key = md5.Sum([]byte(req.GetUrl()))
 		if _, ok := this.rmKey[key]; ok {
-			this.locker.Unlock()
+			this.mutex.Unlock()
 			return
 		}
 	}
-	e := this.queue.PushBack(requ)
+	e := this.queue.PushBack(req)
 	if this.rm {
 		this.rmKey[key] = e
 	}
-	this.locker.Unlock()
+	this.mutex.Unlock()
 }
 
 func (this *QueueScheduler) Poll() *request.Request {
-	this.locker.Lock()
+	this.mutex.Lock()
+	defer this.mutex.Unlock()
 	if this.queue.Len() <= 0 {
-		this.locker.Unlock()
 		return nil
 	}
 	e := this.queue.Front()
-	requ := e.Value.(*request.Request)
-	key := md5.Sum([]byte(requ.GetUrl()))
+	req := e.Value.(*request.Request)
+	key := md5.Sum([]byte(req.GetUrl()))
 	this.queue.Remove(e)
 	if this.rm {
 		delete(this.rmKey, key)
 	}
-	this.locker.Unlock()
-	return requ
+	return req
 }
 
 func (this *QueueScheduler) Count() int {
-	this.locker.Lock()
-	len := this.queue.Len()
-	this.locker.Unlock()
-	return len
+	this.mutex.Lock()
+	defer this.mutex.Unlock()
+	return this.queue.Len()
 }

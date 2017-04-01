@@ -1,4 +1,3 @@
-// Package downloader is the main module of crawler for download page.
 package downloader
 
 import (
@@ -19,10 +18,6 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
-// The Downloader interface.
-// You can implement the interface by implement function Download.
-// Function Download need to return Page instance pointer that has request result downloaded from Request.
-
 type HttpDownloader struct {
 }
 
@@ -31,10 +26,10 @@ func NewHttpDownloader() *HttpDownloader {
 }
 
 func (this *HttpDownloader) Download(req *request.Request) *page.Page {
-	var mtype string
+	var respType string
 	var p = page.NewPage(req)
-	mtype = req.GetResponceType()
-	switch mtype {
+	respType = req.GetResponceType()
+	switch respType {
 	case "html":
 		return this.downloadHtml(p, req)
 	case "json":
@@ -44,7 +39,7 @@ func (this *HttpDownloader) Download(req *request.Request) *page.Page {
 	case "text":
 		return this.downloadText(p, req)
 	default:
-		log.LogInst().LogError("error request type:" + mtype)
+		log.LogInst().LogError("error request type:" + respType)
 	}
 	return p
 }
@@ -62,11 +57,7 @@ func (this *HttpDownloader) changeCharsetEncodingAuto(contentTypeStr string, sor
 	var sorbody []byte
 	if sorbody, err = ioutil.ReadAll(destReader); err != nil {
 		log.LogInst().LogError(err.Error())
-		// For gb2312, an error will be returned.
-		// Error like: simplifiedchinese: invalid GBK encoding
-		// return ""
 	}
-	//e,name,certain := charset.DetermineEncoding(sorbody,contentTypeStr)
 	bodystr := string(sorbody)
 
 	return bodystr
@@ -106,25 +97,24 @@ func connectByHttp(p *page.Page, req *request.Request) (*http.Response, error) {
 		CheckRedirect: req.GetRedirectFunc(),
 	}
 
-	httpreq, err := http.NewRequest(req.GetMethod(), req.GetUrl(), strings.NewReader(req.GetPostdata()))
+	httpReq, err := http.NewRequest(req.GetMethod(), req.GetUrl(), strings.NewReader(req.GetPostdata()))
+	httpReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36")
 	if header := req.GetHeader(); header != nil {
-		httpreq.Header = req.GetHeader()
+		httpReq.Header = req.GetHeader()
 	}
 
 	if cookies := req.GetCookies(); cookies != nil {
 		for i := range cookies {
-			httpreq.AddCookie(cookies[i])
+			httpReq.AddCookie(cookies[i])
 		}
 	}
 
 	var resp *http.Response
-	if resp, err = client.Do(httpreq); err != nil {
+	if resp, err = client.Do(httpReq); err != nil {
 		if e, ok := err.(*url.Error); ok && e.Err != nil && e.Err.Error() == "normal" {
-			//  normal
 		} else {
 			log.LogInst().LogError(err.Error())
 			p.SetStatus(true, err.Error())
-			//fmt.Printf("client do error %v \r\n", err)
 			return nil, err
 		}
 	}
@@ -133,9 +123,10 @@ func connectByHttp(p *page.Page, req *request.Request) (*http.Response, error) {
 }
 
 // choose a proxy server to excute http GET/method to download
-func connectByHttpProxy(p *page.Page, in_req *request.Request) (*http.Response, error) {
-	request, _ := http.NewRequest("GET", in_req.GetUrl(), nil)
-	proxy, err := url.Parse(in_req.GetProxyHost())
+func connectByHttpProxy(p *page.Page, req *request.Request) (*http.Response, error) {
+	httpReq, _ := http.NewRequest("GET", req.GetUrl(), nil)
+	httpReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36")
+	proxy, err := url.Parse(req.GetProxyHost())
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +135,7 @@ func connectByHttpProxy(p *page.Page, in_req *request.Request) (*http.Response, 
 			Proxy: http.ProxyURL(proxy),
 		},
 	}
-	resp, err := client.Do(request)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
@@ -165,12 +156,8 @@ func (this *HttpDownloader) downloadFile(p *page.Page, req *request.Request) (*p
 	var resp *http.Response
 
 	if proxystr := req.GetProxyHost(); len(proxystr) != 0 {
-		//using http proxy
-		//fmt.Print("HttpProxy Enter ",proxystr,"\n")
 		resp, err = connectByHttpProxy(p, req)
 	} else {
-		//normal http download
-		//fmt.Print("Http Normal Enter \n",proxystr,"\n")
 		resp, err = connectByHttp(p, req)
 	}
 
@@ -178,20 +165,15 @@ func (this *HttpDownloader) downloadFile(p *page.Page, req *request.Request) (*p
 		return p, ""
 	}
 
-	//b, _ := ioutil.ReadAll(resp.Body)
-	//fmt.Printf("Resp body %v \r\n", string(b))
-
 	p.SetHeader(resp.Header)
 	p.SetCookies(resp.Cookies())
 
-	// get converter to utf-8
 	var bodyStr string
 	if resp.Header.Get("Content-Encoding") == "gzip" {
 		bodyStr = this.changeCharsetEncodingAutoGzipSupport(resp.Header.Get("Content-Type"), resp.Body)
 	} else {
 		bodyStr = this.changeCharsetEncodingAuto(resp.Header.Get("Content-Type"), resp.Body)
 	}
-	//fmt.Printf("utf-8 body %v \r\n", bodyStr)
 	defer resp.Body.Close()
 	return p, bodyStr
 }
@@ -199,9 +181,7 @@ func (this *HttpDownloader) downloadFile(p *page.Page, req *request.Request) (*p
 func (this *HttpDownloader) downloadHtml(p *page.Page, req *request.Request) *page.Page {
 	var err error
 	p, destbody := this.downloadFile(p, req)
-	//fmt.Printf("Destbody %v \r\n", destbody)
 	if !p.IsSucc() {
-		//fmt.Print("Page error \r\n")
 		return p
 	}
 	bodyReader := bytes.NewReader([]byte(destbody))

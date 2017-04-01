@@ -1,4 +1,3 @@
-// Package mlog implements log operations.
 package log
 
 import (

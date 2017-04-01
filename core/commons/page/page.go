@@ -149,12 +149,6 @@ func (this *Page) AddTargetRequestsWithProxy(urls []string, respType string, pro
 	return this
 }
 
-// AddTargetRequest adds one new Request with header file for waitting for crawl.
-func (this *Page) AddTargetRequestWithHeaderFile(url string, respType string, headerFile string) *Page {
-	this.targetRequests = append(this.targetRequests, request.NewRequestWithHeaderFile(url, respType, headerFile))
-	return this
-}
-
 // AddTargetRequest adds one new Request waitting for crawl.
 // The respType is "html" or "json" or "jsonp" or "text".
 // The urltag is name for marking url and distinguish different urls in PageProcesser and Pipeline.
