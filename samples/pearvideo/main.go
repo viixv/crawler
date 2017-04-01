@@ -1,8 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"strings"
+	"regexp"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/viixv/crawler/core/commons/page"
@@ -10,55 +9,59 @@ import (
 	"github.com/viixv/crawler/core/pipeline"
 )
 
-type MyPageProcesser struct {
+type PageProcesser struct {
+	popularReg *regexp.Regexp
+	videoReg   *regexp.Regexp
 }
 
-func NewMyPageProcesser() *MyPageProcesser {
-	return &MyPageProcesser{}
+func NewPageProcesser() *PageProcesser {
+	p := PageProcesser{}
+	p.popularReg, _ = regexp.Compile("http://www\\.pearvideo\\.com/popular")
+	p.videoReg, _ = regexp.Compile("http://www\\.pearvideo\\.com/video_\\d+")
+	return &p
 }
 
-// Parse html dom here and record the parse result that we want to Page.
-// Package goquery (http://godoc.org/github.com/PuerkitoBio/goquery) is used to parse html.
-func (this *MyPageProcesser) Process(p *page.Page) {
+func (this *PageProcesser) Process(p *page.Page) {
 	if !p.IsSucc() {
 		println(p.Errormsg())
 		return
 	}
 
 	query := p.GetHtmlParser()
-	var urls []string
-	query.Find("h3[class='repo-list-name'] a").Each(func(i int, s *goquery.Selection) {
-		href, _ := s.Attr("href")
-		urls = append(urls, "http://github.com/"+href)
-	})
-	// these urls will be saved and crawed by other coroutines.
-	p.AddTargetRequests(urls, "html")
 
-	name := query.Find(".entry-title .author").Text()
-	name = strings.Trim(name, " \t\n")
-	repository := query.Find(".entry-title .js-current-repository").Text()
-	repository = strings.Trim(repository, " \t\n")
-	//readme, _ := query.Find("#readme").Html()
-	if name == "" {
-		p.SetSkip(true)
+	if this.popularReg.MatchString(p.GetRequest().Url) {
+		var urls []string
+		query.Find(".popularem.clearfix").Each(func(i int, s *goquery.Selection) {
+			if href, e := s.Find(".popularembd.actplay").Attr("href"); e {
+				urls = append(urls, "http://www.pearvideo.com/"+href)
+			}
+		})
+		p.AddTargetRequests(urls, "html")
+		return
 	}
-	// the entity we want to save by Pipeline
-	p.AddField("author", name)
-	p.AddField("project", repository)
-	//p.AddField("readme", readme)
+
+	if this.videoReg.MatchString(p.GetRequest().Url) {
+		if title, e := query.Find("#share-to").Attr("data-title"); e {
+			p.AddField("title", title)
+		}
+
+		if summary, e := query.Find("#share-to").Attr("data-summary"); e {
+			p.AddField("summary", summary)
+		}
+
+		if picurl, e := query.Find("#share-to").Attr("data-picurl"); e {
+			p.AddField("picurl", picurl)
+		}
+	}
 }
 
-func (this *MyPageProcesser) Finish() {
-	fmt.Printf("TODO:before end spider \r\n")
+func (this *PageProcesser) Finish() {
 }
 
 func main() {
-	// Spider input:
-	//  PageProcesser ;
-	//  Task name used in Pipeline for record;
-	crawler.NewCrawler(NewMyPageProcesser(), "TaskName").
-		AddUrl("https://github.com/hu17889?tab=repositories", "html"). // Start url, html is the responce type ("html" or "json" or "jsonp" or "text")
-		AddPipeline(pipeline.NewConsolePipeline()).                    // Print result on screen
-		SetThreadnum(3).                                               // Crawl request by three Coroutines
+	crawler.NewCrawler(NewPageProcesser(), "梨视频").
+		AddUrl("http://www.pearvideo.com/popular", "html").
+		AddPipeline(pipeline.NewConsolePipeline()).
+		SetThreadnum(64).
 		Run()
 }
