@@ -5,13 +5,13 @@ import (
 	"compress/gzip"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/bitly/go-simplejson"
-	"github.com/viixv/crawler/core/commons/log"
 	"github.com/viixv/crawler/core/commons/page"
 	"github.com/viixv/crawler/core/commons/request"
 	"github.com/viixv/crawler/core/commons/utils"
@@ -39,7 +39,7 @@ func (this *HttpDownloader) Download(req *request.Request) *page.Page {
 	case "text":
 		return this.downloadText(p, req)
 	default:
-		log.LogInst().LogError("error request type:" + respType)
+		log.Println("error request type:" + respType)
 	}
 	return p
 }
@@ -50,13 +50,13 @@ func (this *HttpDownloader) changeCharsetEncodingAuto(contentTypeStr string, sor
 	destReader, err := charset.NewReader(sor, contentTypeStr)
 
 	if err != nil {
-		log.LogInst().LogError(err.Error())
+		log.Println(err.Error())
 		destReader = sor
 	}
 
 	var sorbody []byte
 	if sorbody, err = ioutil.ReadAll(destReader); err != nil {
-		log.LogInst().LogError(err.Error())
+		log.Println(err.Error())
 	}
 	bodystr := string(sorbody)
 
@@ -67,20 +67,20 @@ func (this *HttpDownloader) changeCharsetEncodingAutoGzipSupport(contentTypeStr 
 	var err error
 	gzipReader, err := gzip.NewReader(sor)
 	if err != nil {
-		log.LogInst().LogError(err.Error())
+		log.Println(err.Error())
 		return ""
 	}
 	defer gzipReader.Close()
 	destReader, err := charset.NewReader(gzipReader, contentTypeStr)
 
 	if err != nil {
-		log.LogInst().LogError(err.Error())
+		log.Println(err.Error())
 		destReader = sor
 	}
 
 	var sorbody []byte
 	if sorbody, err = ioutil.ReadAll(destReader); err != nil {
-		log.LogInst().LogError(err.Error())
+		log.Println(err.Error())
 		// For gb2312, an error will be returned.
 		// Error like: simplifiedchinese: invalid GBK encoding
 		// return ""
@@ -113,7 +113,7 @@ func connectByHttp(p *page.Page, req *request.Request) (*http.Response, error) {
 	if resp, err = client.Do(httpReq); err != nil {
 		if e, ok := err.(*url.Error); ok && e.Err != nil && e.Err.Error() == "normal" {
 		} else {
-			log.LogInst().LogError(err.Error())
+			log.Println(err.Error())
 			p.SetStatus(true, err.Error())
 			return nil, err
 		}
@@ -148,7 +148,7 @@ func (this *HttpDownloader) downloadFile(p *page.Page, req *request.Request) (*p
 	var err error
 	var urlstr string
 	if urlstr = req.GetUrl(); len(urlstr) == 0 {
-		log.LogInst().LogError("url is empty")
+		log.Println("url is empty")
 		p.SetStatus(true, "url is empty")
 		return p, ""
 	}
@@ -188,14 +188,14 @@ func (this *HttpDownloader) downloadHtml(p *page.Page, req *request.Request) *pa
 
 	var doc *goquery.Document
 	if doc, err = goquery.NewDocumentFromReader(bodyReader); err != nil {
-		log.LogInst().LogError(err.Error())
+		log.Println(err.Error())
 		p.SetStatus(true, err.Error())
 		return p
 	}
 
 	var body string
 	if body, err = doc.Html(); err != nil {
-		log.LogInst().LogError(err.Error())
+		log.Println(err.Error())
 		p.SetStatus(true, err.Error())
 		return p
 	}
@@ -222,7 +222,7 @@ func (this *HttpDownloader) downloadJson(p *page.Page, req *request.Request) *pa
 
 	var r *simplejson.Json
 	if r, err = simplejson.NewJson(body); err != nil {
-		log.LogInst().LogError(string(body) + "\t" + err.Error())
+		log.Println(string(body) + "\t" + err.Error())
 		p.SetStatus(true, err.Error())
 		return p
 	}

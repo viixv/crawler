@@ -2,12 +2,12 @@
 package page
 
 import (
+	"log"
 	"net/http"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/bitly/go-simplejson"
-	"github.com/viixv/crawler/core/commons/log"
 	"github.com/viixv/crawler/core/commons/request"
 	"github.com/viixv/crawler/core/commons/result"
 )
@@ -202,7 +202,7 @@ func (this *Page) ResetHtmlParser() *goquery.Document {
 	var err error
 	this.docParser, err = goquery.NewDocumentFromReader(r)
 	if err != nil {
-		log.LogInst().LogError(err.Error())
+		log.Println(err.Error())
 		panic(err.Error())
 	}
 	return this.docParser

@@ -1,11 +1,11 @@
 package crawler
 
 import (
+	"log"
 	"math/rand"
 	"time"
 
 	"github.com/viixv/crawler/core/commons/controller"
-	"github.com/viixv/crawler/core/commons/log"
 	"github.com/viixv/crawler/core/commons/page"
 	"github.com/viixv/crawler/core/commons/request"
 	"github.com/viixv/crawler/core/commons/result"
@@ -30,9 +30,7 @@ type Crawler struct {
 }
 
 func NewCrawler(pageProcessor processor.PageProcessor, taskName string) *Crawler {
-	log.StraceInst().Open()
 	crawler := Crawler{taskName: taskName, pageProcessor: pageProcessor}
-	crawler.CloseFileLog()
 	crawler.exitWhenComplete = true
 	crawler.sleepType = "fixed"
 	crawler.startSleepTime = 0
@@ -43,7 +41,7 @@ func NewCrawler(pageProcessor processor.PageProcessor, taskName string) *Crawler
 		crawler.SetDownloader(downloader.NewHttpDownloader())
 	}
 	crawler.pipelines = make([]pipeline.Pipeline, 0)
-	log.StraceInst().Println("Crawler initialization complete.")
+	log.Println("Crawler initialization complete.")
 	return &crawler
 }
 
@@ -106,7 +104,7 @@ func (this *Crawler) Run() {
 		req := this.cScheduler.Poll()
 		if this.cController.Has() == 0 && req == nil && this.exitWhenComplete {
 			this.pageProcessor.Finish()
-			log.StraceInst().Println("Crawling complete.")
+			log.Println("Crawling complete.")
 			break
 		} else if req == nil {
 			time.Sleep(500 * time.Millisecond)
@@ -115,7 +113,7 @@ func (this *Crawler) Run() {
 		this.cController.GetOne()
 		go func(req *request.Request) {
 			defer this.cController.FreeOne()
-			log.StraceInst().Println("start crawl : " + req.GetUrl())
+			log.Println("start crawl : " + req.GetUrl())
 			this.pageProcess(req)
 		}(req)
 	}
@@ -172,41 +170,6 @@ func (this *Crawler) GetExitWhenComplete() bool {
 	return this.exitWhenComplete
 }
 
-// The OpenFileLog initialize the log path and open log.
-// If log is opened, error info or other useful info in spider will be logged in file of the filepath.
-// Log command is mlog.LogInst().LogError("info") or mlog.LogInst().LogInfo("info").
-// Spider's default log is closed.
-// The filepath is absolute path.
-func (this *Crawler) OpenFileLog(filePath string) *Crawler {
-	log.InitFilelog(true, filePath)
-	return this
-}
-
-// OpenFileLogDefault open file log with default file path like "WD/log/log.2014-9-1".
-func (this *Crawler) OpenFileLogDefault() *Crawler {
-	log.InitFilelog(true, "")
-	return this
-}
-
-// The CloseFileLog close file log.
-func (this *Crawler) CloseFileLog() *Crawler {
-	log.InitFilelog(false, "")
-	return this
-}
-
-// The OpenStrace open strace that output progress info on the screen.
-// Spider's default strace is opened.
-func (this *Crawler) OpenStrace() *Crawler {
-	log.StraceInst().Open()
-	return this
-}
-
-// The CloseStrace close strace.
-func (this *Crawler) CloseStrace() *Crawler {
-	log.StraceInst().Close()
-	return this
-}
-
 func (this *Crawler) SetSleepTime(sleeptype string, s uint, e uint) *Crawler {
 	this.sleepType = sleeptype
 	this.startSleepTime = s
@@ -243,10 +206,10 @@ func (this *Crawler) AddUrls(urls []string, respType string) *Crawler {
 // add Request to Schedule
 func (this *Crawler) AddRequest(req *request.Request) *Crawler {
 	if req == nil {
-		log.LogInst().LogError("request is nil")
+		log.Println("request is nil")
 		return this
 	} else if req.GetUrl() == "" {
-		log.LogInst().LogError("request is empty")
+		log.Println("request is empty")
 		return this
 	}
 	this.cScheduler.Push(req)
@@ -267,9 +230,9 @@ func (this *Crawler) pageProcess(req *request.Request) {
 	defer func() {
 		if err := recover(); err != nil {
 			if strerr, ok := err.(string); ok {
-				log.LogInst().LogError(strerr)
+				log.Println(strerr)
 			} else {
-				log.LogInst().LogError("pageProcess error")
+				log.Println("pageProcess error")
 			}
 		}
 	}()
